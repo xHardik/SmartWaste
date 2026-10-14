@@ -420,32 +420,28 @@ const initialSeedData = {
     balance: 240,
     ledger: [
       {
-        id: "tx-01",
-        date: "2026-10-12",
-        description: "Verified Accurate Report: Cross Road 4 Dumping",
-        points: "+20 Pts",
-        type: "earned"
+        id: "led-01",
+        reason: "Verified Accurate Report: Cross Road 4 Dumping",
+        points: 20,
+        createdAt: "2026-10-12T09:15:00.000Z"
       },
       {
-        id: "tx-02",
-        date: "2026-10-10",
-        description: "Daily Segregation Challenge Streak (5-Day)",
-        points: "+50 Pts",
-        type: "earned"
+        id: "led-02",
+        reason: "Daily Segregation Challenge Streak (5-Day)",
+        points: 50,
+        createdAt: "2026-10-10T11:00:00.000Z"
       },
       {
-        id: "tx-03",
-        date: "2026-10-08",
-        description: "Community Cleanup Volunteer Participation",
-        points: "+100 Pts",
-        type: "earned"
+        id: "led-03",
+        reason: "Community Cleanup Volunteer Participation",
+        points: 100,
+        createdAt: "2026-10-08T08:00:00.000Z"
       },
       {
-        id: "tx-04",
-        date: "2026-10-05",
-        description: "Doorstep E-Waste Handover Verification",
-        points: "+70 Pts",
-        type: "earned"
+        id: "led-04",
+        reason: "Doorstep E-Waste Handover Verification",
+        points: 70,
+        createdAt: "2026-10-05T14:15:00.000Z"
       }
     ],
     sampleCoupons: [

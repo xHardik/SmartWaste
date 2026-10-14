@@ -78,13 +78,27 @@ function showToast(message, type = 'success') {
   }, 3500);
 }
 
+// ================= MOBILE DRAWER CONTROLLER =================
+function toggleMobileDrawer() {
+  const drawer = document.getElementById('mobile-drawer');
+  const backdrop = document.getElementById('mobile-drawer-backdrop');
+  if (!drawer || !backdrop) return;
+  const isClosed = drawer.classList.contains('-translate-x-full');
+  if (isClosed) {
+    drawer.classList.remove('-translate-x-full');
+    backdrop.classList.remove('hidden');
+  } else {
+    drawer.classList.add('-translate-x-full');
+    backdrop.classList.add('hidden');
+  }
+}
+
 // ================= SPA ROUTING & NAVIGATION =================
 async function navigateTo(viewId) {
   currentView = viewId;
   currentRole = 'resident';
 
-
-  // Update navigation button active state
+  // Update desktop sidebar buttons
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.classList.remove('bg-brand-50', 'text-brand-700', 'font-semibold', 'bg-purple-100');
     if (!btn.id.includes('admin')) {
@@ -102,6 +116,17 @@ async function navigateTo(viewId) {
     }
   }
 
+  // Update mobile bottom nav buttons
+  document.querySelectorAll('.bnav-btn').forEach(btn => {
+    btn.classList.remove('text-emerald-700', 'font-bold');
+    btn.classList.add('text-slate-500');
+  });
+  const activeBNav = document.getElementById(`bnav-${viewId}`);
+  if (activeBNav) {
+    activeBNav.classList.remove('text-slate-500');
+    activeBNav.classList.add('text-emerald-700', 'font-bold');
+  }
+
   // Toggle visible section
   document.querySelectorAll('.view-panel').forEach(panel => {
     panel.classList.remove('active');
@@ -113,6 +138,10 @@ async function navigateTo(viewId) {
   }
 
   if (window.lucide) lucide.createIcons();
+
+  // Scroll to top of content area on navigation
+  const contentArea = document.getElementById('content-area');
+  if (contentArea) contentArea.scrollTo({ top: 0, behavior: 'smooth' });
 
   // Load view-specific data
   if (viewId === 'dashboard') {
@@ -937,37 +966,63 @@ async function registerForEvent(eventId) {
 async function loadRewardsView() {
   try {
     const res = await API.getRewards();
-    if (res.success) {
+    if (res && res.success) {
       const data = res.data;
-      document.getElementById('rewards-balance-big').textContent = `${data.balance} Eco-Pts`;
-      document.getElementById('top-eco-points').textContent = data.balance;
+      const currentBalance = typeof data.balance === 'number' ? data.balance : 240;
+      
+      const bigBalance = document.getElementById('rewards-balance-big');
+      if (bigBalance) bigBalance.textContent = `${currentBalance} Eco-Pts`;
+      
+      const topPts = document.getElementById('top-eco-points');
+      if (topPts) topPts.textContent = currentBalance;
 
       // Render Ledger
       const ledgerList = document.getElementById('rewards-ledger-list');
-      ledgerList.innerHTML = data.ledger.map(entry => {
-        const isDeduction = entry.points < 0;
-        return `
-          <div class="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-slate-50/70 hover:bg-slate-50 text-xs transition">
-            <div class="flex items-center space-x-3">
-              <div class="w-8 h-8 rounded-lg ${isDeduction ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'} flex items-center justify-center shrink-0">
-                <i data-lucide="${isDeduction ? 'gift' : 'award'}" class="w-4 h-4"></i>
+      const ledgerEntries = data.ledger || [];
+      if (ledgerEntries.length === 0) {
+        ledgerList.innerHTML = `<div class="text-xs text-slate-400 py-4 text-center">No transactions recorded yet. Complete activities or report garbage to earn points!</div>`;
+      } else {
+        ledgerList.innerHTML = ledgerEntries.map(entry => {
+          const reason = entry.reason || entry.description || 'Civic Cleanliness Contribution';
+          const rawDate = entry.createdAt || entry.date;
+          let formattedDate = 'Recent';
+          if (rawDate) {
+            try {
+              const d = new Date(rawDate);
+              if (!isNaN(d.getTime())) {
+                formattedDate = d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+              }
+            } catch (e) {
+              formattedDate = 'Recent';
+            }
+          }
+          const ptsNum = typeof entry.points === 'number' ? entry.points : (parseInt(entry.points) || 0);
+          const isDeduction = ptsNum < 0;
+
+          return `
+            <div class="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-slate-50/70 hover:bg-slate-50 text-xs transition">
+              <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-lg ${isDeduction ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'} flex items-center justify-center shrink-0">
+                  <i data-lucide="${isDeduction ? 'gift' : 'award'}" class="w-4 h-4"></i>
+                </div>
+                <div class="space-y-0.5">
+                  <div class="font-bold text-slate-800">${reason}</div>
+                  <div class="text-[11px] text-slate-400">${formattedDate}</div>
+                </div>
               </div>
-              <div class="space-y-0.5">
-                <div class="font-bold text-slate-800">${entry.reason}</div>
-                <div class="text-[11px] text-slate-400">${new Date(entry.createdAt).toLocaleDateString()}</div>
-              </div>
+              <span class="font-black ${isDeduction ? 'text-amber-800 bg-amber-100/70 border-amber-200' : 'text-emerald-700 bg-emerald-100/70 border-emerald-200'} px-2.5 py-1 rounded-lg text-xs border font-mono shrink-0">
+                ${ptsNum > 0 ? '+' : ''}${ptsNum} Pts
+              </span>
             </div>
-            <span class="font-black ${isDeduction ? 'text-amber-800 bg-amber-100/70 border-amber-200' : 'text-emerald-700 bg-emerald-100/70 border-emerald-200'} px-2.5 py-1 rounded-lg text-xs border font-mono">
-              ${entry.points > 0 ? '+' : ''}${entry.points} Pts
-            </span>
-          </div>
-        `;
-      }).join('');
+          `;
+        }).join('');
+      }
 
       // Render sample coupons with active Redeem buttons (PRD Section 7.7)
       const couponsGrid = document.getElementById('rewards-coupons-grid');
-      couponsGrid.innerHTML = data.sampleCoupons.map(cpn => {
-        const canAfford = data.balance >= cpn.costPoints;
+      const sampleCoupons = data.sampleCoupons || [];
+      couponsGrid.innerHTML = sampleCoupons.map(cpn => {
+        const canAfford = currentBalance >= cpn.costPoints;
         return `
           <div class="p-4 rounded-2xl border border-amber-200/90 bg-gradient-to-r from-amber-50/70 via-white to-amber-50/40 shadow-xs hover-lift transition-all space-y-3 text-xs">
             <div class="flex items-center justify-between">
@@ -981,7 +1036,7 @@ async function loadRewardsView() {
               <span class="text-[11px] text-slate-500 font-medium">Partner: <strong class="text-slate-700">${cpn.partner}</strong></span>
               <div class="flex items-center space-x-2.5">
                 <span class="font-black text-amber-900 bg-amber-100 px-2 py-0.5 rounded-lg border border-amber-300 font-mono">${cpn.costPoints} Pts</span>
-                <button onclick="redeemVoucher('${cpn.id}')" ${canAfford ? '' : 'disabled'} class="px-3 py-1.5 ${canAfford ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm' : 'bg-slate-200 text-slate-400 cursor-not-allowed'} rounded-xl text-[11px] font-bold transition flex items-center space-x-1">
+                <button onclick="redeemVoucher('${cpn.id}')" ${canAfford ? '' : 'disabled'} class="px-3 py-1.5 ${canAfford ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-sm cursor-pointer' : 'bg-slate-200 text-slate-400 cursor-not-allowed'} rounded-xl text-[11px] font-bold transition flex items-center space-x-1">
                   <i data-lucide="tag" class="w-3 h-3"></i>
                   <span>${canAfford ? 'Redeem Voucher' : 'Need More Pts'}</span>
                 </button>
