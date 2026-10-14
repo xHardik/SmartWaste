@@ -15,6 +15,11 @@ let selectedFeedbackRating = 5;
 document.addEventListener('DOMContentLoaded', async () => {
   if (window.lucide) lucide.createIcons();
 
+  // Pre-initialize dashboard map immediately
+  if (typeof initDashboardMap === 'function') {
+    initDashboardMap();
+  }
+
   // Set up report map pin picker
   initReportMap((lat, lng) => {
     document.getElementById('report-lat').value = lat;
@@ -110,7 +115,12 @@ async function navigateTo(viewId) {
   if (window.lucide) lucide.createIcons();
 
   // Load view-specific data
-  if (viewId === 'dashboard') await loadDashboardView();
+  if (viewId === 'dashboard') {
+    await loadDashboardView();
+    if (typeof dashMap !== 'undefined' && dashMap) {
+      [50, 150, 300].forEach(d => setTimeout(() => dashMap.invalidateSize(), d));
+    }
+  }
   else if (viewId === 'guide') await loadWasteGuideView();
   else if (viewId === 'complaints') await loadComplaintsView();
   else if (viewId === 'collections') await loadPickupsView();
@@ -118,9 +128,9 @@ async function navigateTo(viewId) {
   else if (viewId === 'rewards') await loadRewardsView();
   else if (viewId === 'admin') await loadAdminView();
   else if (viewId === 'report') {
-    setTimeout(() => {
-      if (typeof reportMap !== 'undefined' && reportMap) reportMap.invalidateSize();
-    }, 200);
+    if (typeof reportMap !== 'undefined' && reportMap) {
+      [50, 150, 300].forEach(d => setTimeout(() => reportMap.invalidateSize(), d));
+    }
   }
 }
 
@@ -165,18 +175,29 @@ async function loadDashboardView() {
       }
     }
 
+    // Always initialize dashboard map immediately
+    initDashboardMap(cachedComplaints);
+
     // Load complaints for map
-    const compRes = await API.getComplaints();
-    if (compRes.success) {
-      cachedComplaints = compRes.data;
-      document.getElementById('badge-complaints-count').textContent = cachedComplaints.length;
-      setTimeout(() => {
-        initDashboardMap(cachedComplaints);
-        if (dashMap) dashMap.invalidateSize();
-      }, 150);
+    try {
+      const compRes = await API.getComplaints();
+      if (compRes && compRes.success) {
+        cachedComplaints = compRes.data;
+        const countBadge = document.getElementById('badge-complaints-count');
+        if (countBadge) countBadge.textContent = cachedComplaints.length;
+        updateDashboardMapPins(cachedComplaints);
+      }
+    } catch (e) {
+      console.warn('Complaints fetch notice:', e);
+      updateDashboardMapPins(cachedComplaints);
+    }
+
+    if (typeof dashMap !== 'undefined' && dashMap) {
+      [50, 150, 300, 600].forEach(d => setTimeout(() => dashMap.invalidateSize(), d));
     }
   } catch (err) {
     console.error('Error loading dashboard:', err);
+    if (typeof initDashboardMap === 'function') initDashboardMap();
   }
   if (window.lucide) lucide.createIcons();
 }
@@ -393,19 +414,27 @@ function filterGuideCategory(category) {
 
 function checkQuizAnswer(choice) {
   const feedback = document.getElementById('quiz-feedback');
+  if (!feedback) return;
   feedback.classList.remove('hidden');
 
   if (choice === 'blue') {
-    feedback.className = 'text-xs p-3 rounded-lg bg-red-50 text-red-800 border border-red-200 space-y-1';
+    feedback.className = 'text-xs p-3.5 rounded-xl bg-rose-50 text-rose-800 border border-rose-200 space-y-1 mt-2';
     feedback.innerHTML = `
       <strong>Incorrect:</strong> Grease and melted cheese soak into paper fibers, permanently ruining the pulp recycling process. Food-soiled cardboard cannot be recycled in the Blue Bin.
     `;
   } else {
-    feedback.className = 'text-xs p-3 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 space-y-1';
+    feedback.className = 'text-xs p-3.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 space-y-1 mt-2';
     feedback.innerHTML = `
       <strong>Correct! (+10 Eco-Points):</strong> Food-soiled greasy cardboard belongs in wet composting or non-recyclable grey/black bins because grease contaminates standard recycling batches.
     `;
     showToast('Correct answer! +10 Eco-Points added to your balance.', 'success');
+    
+    // Add points to UI
+    const topPoints = document.getElementById('top-eco-points');
+    if (topPoints) {
+      const current = parseInt(topPoints.textContent) || 240;
+      topPoints.textContent = current + 10;
+    }
   }
 }
 
@@ -470,7 +499,7 @@ function renderWasteGuideItems(items) {
           
           <div class="p-2.5 bg-emerald-50/40 rounded-xl text-[11px] text-emerald-900 border border-emerald-100 flex items-start space-x-2">
             <i data-lucide="landmark" class="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5"></i>
-            <div><strong>Ward Guideline:</strong> ${item.localRuleNote}</div>
+            <div><strong>Municipal Guideline:</strong> ${item.localRuleNote}</div>
           </div>
 
           ${item.specialHandlingWarning ? `
@@ -1035,7 +1064,7 @@ async function quickResolveComplaint(ticketId) {
   try {
     const res = await API.updateComplaintStatus(ticketId, {
       status: 'Resolved',
-      assignedWorkerGroup: 'Ward 14 Rapid Action Crew #1',
+      assignedWorkerGroup: 'Central Zone Rapid Action Crew #1',
       resolutionNote: 'Spot thoroughly cleaned, waste cleared, and public surface disinfected.',
       afterPhotoUrl: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=600&q=80'
     });
@@ -1084,7 +1113,7 @@ async function openAdminUpdateModal(ticketId) {
   document.getElementById('admin-update-ticket-id').value = c.id;
   document.getElementById('admin-modal-ticket-id').textContent = `Ticket: ${c.id} (${c.issueTypeName || c.issueType})`;
   document.getElementById('admin-new-status').value = c.status;
-  document.getElementById('admin-assign-squad').value = c.assignedWorkerGroup || 'Ward 14 Rapid Action Crew #1';
+  document.getElementById('admin-assign-squad').value = c.assignedWorkerGroup || 'Central Zone Rapid Action Crew #1';
   document.getElementById('admin-note').value = c.resolutionNote || '';
   
   openModal('admin-update-modal');
