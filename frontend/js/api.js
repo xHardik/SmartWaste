@@ -5,7 +5,10 @@
  * 2. Automatic, rich LocalStorage/Seed-Data ClientStore when backend is offline or on static deployments (e.g. Vercel)
  */
 
-const API_BASE = ''; // Same origin (relative URL)
+// Backend API origin (defaults to same-origin or Render cloud service if configured)
+const API_BASE = (typeof window !== 'undefined' && window.RENDER_BACKEND_URL) 
+  ? window.RENDER_BACKEND_URL 
+  : ((typeof localStorage !== 'undefined' && localStorage.getItem('smartwaste_backend_url')) || '');
 
 // ================= CLIENT-SIDE LOCAL STORE (Fallback for Vercel/Static Hosting) =================
 class LocalStore {
@@ -121,6 +124,12 @@ class LocalStore {
     // Reward citizen points for civic contribution
     this.addRewardPoints(`Submitted public cleanliness report (${newId})`, 20, newId);
     this.save();
+
+    // Sync to Firebase Realtime Cloud Database if initialized
+    if (typeof window !== 'undefined' && window.FirebaseSync) {
+      window.FirebaseSync.saveComplaint(newComplaint);
+    }
+
     return { success: true, message: 'Complaint registered successfully', data: newComplaint };
   }
 
@@ -146,6 +155,18 @@ class LocalStore {
     });
 
     this.save();
+
+    // Sync status change to Firebase Cloud Database if initialized
+    if (typeof window !== 'undefined' && window.FirebaseSync) {
+      window.FirebaseSync.updateComplaint(id, {
+        status: c.status,
+        resolutionNote: c.resolutionNote,
+        assignedWorkerGroup: c.assignedWorkerGroup,
+        afterPhotoUrl: c.afterPhotoUrl,
+        updatedAt: c.updatedAt
+      });
+    }
+
     return { success: true, data: c };
   }
 
