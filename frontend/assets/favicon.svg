@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="100%" height="100%">
+  <defs>
+    <linearGradient id="favBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#047857" />
+      <stop offset="100%" stop-color="#0d9488" />
+    </linearGradient>
+    <linearGradient id="favLeaf" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#a7f3d0" />
+      <stop offset="100%" stop-color="#34d399" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="30" fill="url(#favBg)" />
+  <g transform="translate(64, 64) scale(0.92) translate(-64, -64)">
+    <path d="M 64 25 C 84 25 99 39 102 59" fill="none" stroke="#6ee7b7" stroke-width="8" stroke-linecap="round" />
+    <polygon points="102,66 94,54 107,56" fill="#6ee7b7" />
+    <path d="M 97 73 C 88 92 70 102 50 101" fill="none" stroke="#34d399" stroke-width="8" stroke-linecap="round" />
+    <polygon points="43,98 55,93 51,105" fill="#34d399" />
+    <path d="M 39 88 C 26 73 28 50 43 36" fill="none" stroke="#2dd4bf" stroke-width="8" stroke-linecap="round" />
+    <polygon points="51,32 40,40 47,46" fill="#2dd4bf" />
+    <path d="M 64 74 C 64 74 65 52 81 44 C 81 60 72 74 64 74 Z" fill="url(#favLeaf)" />
+    <path d="M 64 74 C 64 74 58 56 46 51 C 47 64 54 74 64 74 Z" fill="#6ee7b7" opacity="0.9" />
+    <circle cx="64" cy="48" r="3" fill="#ffffff" />
+  </g>
+</svg>
