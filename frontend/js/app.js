@@ -15,6 +15,9 @@ let selectedFeedbackRating = 5;
 document.addEventListener('DOMContentLoaded', async () => {
   if (window.lucide) lucide.createIcons();
 
+  // Sync initial restricted admin visibility
+  syncAdminUiState();
+
   // Pre-initialize dashboard map immediately
   if (typeof initDashboardMap === 'function') {
     initDashboardMap();
@@ -27,20 +30,118 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('report-coords-text').textContent = `${lat}, ${lng}`;
   });
 
-  // Load initial view
-  await navigateTo('dashboard');
+  // Check URL hash for direct admin link
+  if (window.location.hash === '#admin') {
+    if (sessionStorage.getItem('civic_admin_auth') === 'true') {
+      await navigateTo('admin');
+    } else {
+      await navigateTo('dashboard');
+      promptAdminLogin();
+    }
+  } else {
+    // Load initial citizen view
+    await navigateTo('dashboard');
+  }
 });
 
-// ================= ROLE TOGGLE =================
-function toggleRole() {
-  if (currentRole === 'resident') {
-    navigateTo('admin');
-    showToast('Switched to Demo Admin Mode (Sanitation Operations)', 'info');
+// ================= RESTRICTED ADMIN AUTHENTICATION ENGINE =================
+function syncAdminUiState() {
+  const isAuth = sessionStorage.getItem('civic_admin_auth') === 'true';
+  const adminBanner = document.getElementById('admin-banner');
+  const navAdmin = document.getElementById('nav-admin');
+  const mobileNavAdmin = document.getElementById('mobile-nav-admin');
+
+  if (isAuth) {
+    if (adminBanner) adminBanner.classList.remove('hidden');
+    if (navAdmin) {
+      navAdmin.classList.remove('hidden');
+      navAdmin.classList.add('flex');
+    }
+    if (mobileNavAdmin) {
+      mobileNavAdmin.classList.remove('hidden');
+      mobileNavAdmin.classList.add('flex');
+    }
   } else {
-    navigateTo('dashboard');
-    showToast('Switched to Resident Citizen Mode', 'info');
+    if (adminBanner) adminBanner.classList.add('hidden');
+    if (navAdmin) {
+      navAdmin.classList.add('hidden');
+      navAdmin.classList.remove('flex');
+    }
+    if (mobileNavAdmin) {
+      mobileNavAdmin.classList.add('hidden');
+      mobileNavAdmin.classList.remove('flex');
+    }
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+function promptAdminLogin() {
+  if (sessionStorage.getItem('civic_admin_auth') === 'true') {
+    navigateTo('admin');
+    return;
+  }
+  const input = document.getElementById('admin-passcode-input');
+  if (input) {
+    input.value = '';
+    input.classList.remove('border-rose-500', 'ring-1', 'ring-rose-500');
+  }
+  const err = document.getElementById('admin-auth-error');
+  if (err) err.classList.add('hidden');
+  openModal('admin-auth-modal');
+  setTimeout(() => { if (input) input.focus(); }, 150);
+}
+
+function togglePasscodeVisibility() {
+  const input = document.getElementById('admin-passcode-input');
+  const icon = document.getElementById('passcode-eye-icon');
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    if (icon) icon.setAttribute('data-lucide', 'eye-off');
+  } else {
+    input.type = 'password';
+    if (icon) icon.setAttribute('data-lucide', 'eye');
+  }
+  if (window.lucide) lucide.createIcons();
+}
+
+function handleAdminAuthSubmit(e) {
+  e.preventDefault();
+  const input = document.getElementById('admin-passcode-input');
+  const err = document.getElementById('admin-auth-error');
+  const enteredPin = (input ? input.value : '').trim();
+
+  // Valid municipal staff passcodes
+  const validPins = ['admin123', 'admin', 'civic2026', 'pce2026'];
+  if (validPins.includes(enteredPin)) {
+    sessionStorage.setItem('civic_admin_auth', 'true');
+    closeModal('admin-auth-modal');
+    syncAdminUiState();
+    navigateTo('admin');
+    showToast('Verified: Municipal Sanitation Supervisor access granted', 'success');
+  } else {
+    if (err) err.classList.remove('hidden');
+    if (input) {
+      input.classList.add('border-rose-500', 'ring-1', 'ring-rose-500');
+      input.focus();
+    }
   }
 }
+
+function exitAdminMode() {
+  sessionStorage.removeItem('civic_admin_auth');
+  syncAdminUiState();
+  navigateTo('dashboard');
+  showToast('Logged out of Admin Desk. Switched to Citizen View.', 'info');
+}
+
+// Global discrete shortcut (Ctrl + Alt + A) for staff
+window.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.altKey && (e.key === 'a' || e.key === 'A')) {
+    e.preventDefault();
+    promptAdminLogin();
+  }
+});
 
 // ================= TOAST NOTIFICATION ENGINE =================
 function showToast(message, type = 'success') {
@@ -95,12 +196,22 @@ function toggleMobileDrawer() {
 
 // ================= SPA ROUTING & NAVIGATION =================
 async function navigateTo(viewId) {
+  // Access control for restricted municipal admin view
+  if (viewId === 'admin') {
+    if (sessionStorage.getItem('civic_admin_auth') !== 'true') {
+      promptAdminLogin();
+      return;
+    }
+    currentRole = 'admin';
+  } else {
+    currentRole = 'resident';
+  }
+
   currentView = viewId;
-  currentRole = 'resident';
 
   // Update desktop sidebar buttons
   document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.classList.remove('bg-brand-50', 'text-brand-700', 'font-semibold', 'bg-purple-100');
+    btn.classList.remove('bg-brand-50', 'text-brand-700', 'font-semibold', 'bg-purple-100', 'text-purple-800');
     if (!btn.id.includes('admin')) {
       btn.classList.add('text-slate-600');
     }
@@ -109,6 +220,7 @@ async function navigateTo(viewId) {
   const activeBtn = document.getElementById(`nav-${viewId}`);
   if (activeBtn) {
     if (viewId === 'admin') {
+      activeBtn.classList.remove('text-slate-600');
       activeBtn.classList.add('bg-purple-100', 'text-purple-800', 'font-semibold');
     } else {
       activeBtn.classList.remove('text-slate-600');
@@ -1075,39 +1187,87 @@ async function redeemVoucher(couponId) {
   }
 }
 
-// ================= VIEW: ADMIN PORTAL =================
+// ================= VIEW: ADMIN PORTAL (Restricted Municipal Supervisor) =================
 async function loadAdminView() {
   await renderAdminComplaintsTable();
   await loadAdminAuditLog();
+  await loadAdminPickupsQueue();
 }
 
 async function renderAdminComplaintsTable() {
-  const statusFilter = document.getElementById('admin-filter-status').value;
-  const typeFilter = document.getElementById('admin-filter-type').value;
+  const statusFilterEl = document.getElementById('admin-filter-status');
+  const typeFilterEl = document.getElementById('admin-filter-type');
+  const searchInputEl = document.getElementById('admin-search-input');
+
+  const statusFilter = statusFilterEl ? statusFilterEl.value : 'all';
+  const typeFilter = typeFilterEl ? typeFilterEl.value : 'all';
+  const searchQuery = searchInputEl ? searchInputEl.value.trim().toLowerCase() : '';
 
   try {
     const res = await API.getComplaints({ status: statusFilter, issueType: typeFilter });
     if (res.success) {
-      const complaints = res.data;
+      let complaints = res.data;
+
+      // Update KPI Statistics across ALL complaints
+      const allRes = await API.getComplaints();
+      if (allRes.success) {
+        const all = allRes.data;
+        const total = all.length;
+        const pending = all.filter(c => c.status === 'Submitted' || c.status === 'Reopened').length;
+        const active = all.filter(c => c.status === 'Under Review' || c.status === 'Assigned' || c.status === 'Cleaning In Progress').length;
+        const resolved = all.filter(c => c.status === 'Resolved').length;
+        const rate = total > 0 ? Math.round((resolved / total) * 100) : 0;
+
+        const statTotal = document.getElementById('admin-stat-total');
+        const statPending = document.getElementById('admin-stat-pending');
+        const statActive = document.getElementById('admin-stat-active');
+        const statResolved = document.getElementById('admin-stat-resolved');
+        const statRate = document.getElementById('admin-stat-rate');
+
+        if (statTotal) statTotal.textContent = total;
+        if (statPending) statPending.textContent = pending;
+        if (statActive) statActive.textContent = active;
+        if (statResolved) statResolved.textContent = resolved;
+        if (statRate) statRate.textContent = `(${rate}%)`;
+      }
+
+      // Apply client-side search query
+      if (searchQuery) {
+        complaints = complaints.filter(c => 
+          (c.id && c.id.toLowerCase().includes(searchQuery)) ||
+          (c.address && c.address.toLowerCase().includes(searchQuery)) ||
+          (c.landmark && c.landmark.toLowerCase().includes(searchQuery)) ||
+          (c.assignedWorkerGroup && c.assignedWorkerGroup.toLowerCase().includes(searchQuery)) ||
+          (c.issueTypeName && c.issueTypeName.toLowerCase().includes(searchQuery))
+        );
+      }
+
       const tbody = document.getElementById('admin-table-body');
+      if (!tbody) return;
+
       if (complaints.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-6 text-slate-400 italic">No complaint reports match filter criteria.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-400 italic">No complaint reports match filter or search criteria.</td></tr>`;
         return;
       }
+
       tbody.innerHTML = complaints.map(c => `
-        <tr class="hover:bg-slate-50 transition">
-          <td class="px-4 py-3 font-extrabold text-slate-900 font-mono">${c.id}</td>
+        <tr class="hover:bg-slate-50 transition border-b border-slate-100">
+          <td class="px-4 py-3 font-extrabold text-slate-900 font-mono text-xs whitespace-nowrap">${c.id}</td>
           <td class="px-4 py-3 font-semibold text-slate-800">${c.issueTypeName || c.issueType}</td>
-          <td class="px-4 py-3 text-slate-600 max-w-xs truncate">${c.address}</td>
-          <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${getSeverityBadgeClass(c.severity)}">${c.severity.toUpperCase()}</span></td>
-          <td class="px-4 py-3 text-slate-400">${new Date(c.createdAt).toLocaleDateString()}</td>
-          <td class="px-4 py-3"><span class="px-2.5 py-0.5 rounded text-[11px] font-bold ${getStatusBadgeClass(c.status)}">${c.status}</span></td>
-          <td class="px-4 py-3 text-right space-x-1">
-            <button onclick="openAdminUpdateModal('${c.id}')" class="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded text-[11px] font-bold transition">
+          <td class="px-4 py-3 text-slate-600 max-w-xs truncate" title="${c.address}">
+            <div class="font-medium text-slate-800">${c.address}</div>
+            ${c.landmark ? `<div class="text-[10px] text-slate-400">${c.landmark}</div>` : ''}
+          </td>
+          <td class="px-4 py-3 whitespace-nowrap"><span class="px-2 py-0.5 rounded text-[10px] font-bold ${getSeverityBadgeClass(c.severity)}">${c.severity.toUpperCase()}</span></td>
+          <td class="px-4 py-3 text-slate-400 whitespace-nowrap">${new Date(c.createdAt).toLocaleDateString()}</td>
+          <td class="px-4 py-3 text-slate-700 font-medium whitespace-nowrap">${c.assignedWorkerGroup || '<span class="text-slate-400 italic">Unassigned</span>'}</td>
+          <td class="px-4 py-3 whitespace-nowrap"><span class="px-2.5 py-0.5 rounded text-[11px] font-bold ${getStatusBadgeClass(c.status)}">${c.status}</span></td>
+          <td class="px-4 py-3 text-right space-x-1 whitespace-nowrap">
+            <button onclick="openAdminUpdateModal('${c.id}')" class="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-[11px] font-bold transition">
               Update Status
             </button>
             ${c.status !== 'Resolved' ? `
-              <button onclick="quickResolveComplaint('${c.id}')" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded text-[11px] font-bold transition" title="1-Click Demo Resolve">
+              <button onclick="quickResolveComplaint('${c.id}')" class="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[11px] font-bold transition" title="1-Click Demo Resolve">
                 ✓ Resolve
               </button>
             ` : ''}
@@ -1117,6 +1277,57 @@ async function renderAdminComplaintsTable() {
     }
   } catch (err) {
     console.error('Error rendering admin table:', err);
+  }
+}
+
+function handleAdminSearch() {
+  renderAdminComplaintsTable();
+}
+
+async function loadAdminPickupsQueue() {
+  try {
+    const res = await API.getPickups();
+    const container = document.getElementById('admin-pickups-list');
+    if (!container) return;
+
+    if (res.success && res.data && res.data.length > 0) {
+      container.innerHTML = res.data.map(p => `
+        <div class="p-3 bg-slate-50 hover:bg-slate-100/70 rounded-xl border border-slate-200 flex items-start justify-between gap-3 text-xs transition">
+          <div class="space-y-1">
+            <div class="flex items-center space-x-2">
+              <span class="font-extrabold text-slate-900 font-mono">${p.id}</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-800">${p.wasteTypeName || p.wasteType}</span>
+            </div>
+            <div class="text-slate-600 font-medium">${p.description}</div>
+            <div class="text-[11px] text-slate-400"><i data-lucide="map-pin" class="w-3 h-3 inline mr-1 text-slate-400"></i>${p.address} • <strong class="text-slate-600">${p.preferredSlot}</strong></div>
+          </div>
+          <span class="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300 shrink-0">
+            ${p.status}
+          </span>
+        </div>
+      `).join('');
+      if (window.lucide) lucide.createIcons();
+    } else {
+      container.innerHTML = `<div class="text-xs text-slate-400 italic py-3 text-center">No pending bulky collection requests.</div>`;
+    }
+  } catch (e) {
+    console.error('Error loading pickups queue:', e);
+  }
+}
+
+function exportAdminCsv() {
+  if (typeof API !== 'undefined' && API.exportLocalCsv) {
+    const csv = API.exportLocalCsv();
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `civic_sanitation_audit_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Municipal audit CSV downloaded successfully', 'success');
   }
 }
 
