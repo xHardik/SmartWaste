@@ -458,6 +458,11 @@ function checkQuizAnswer(choice) {
     `;
     showToast('Correct answer! +10 Eco-Points added to your balance.', 'success');
     
+    // Persist points to rewards balance and ledger
+    if (typeof API !== 'undefined' && API.addRewardPoints) {
+      API.addRewardPoints('Daily Segregation Challenge Streak', 10, 'quiz-daily-streak');
+    }
+
     // Add points to UI
     const topPoints = document.getElementById('top-eco-points');
     if (topPoints) {

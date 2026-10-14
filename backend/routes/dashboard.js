@@ -41,7 +41,7 @@ router.get('/export-csv', (req, res) => {
   try {
     const csvContent = db.exportComplaintsCsv();
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="ward14_cleanliness_complaints.csv"');
+    res.setHeader('Content-Disposition', 'attachment; filename="civic_cleanliness_complaints.csv"');
     res.send(csvContent);
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
